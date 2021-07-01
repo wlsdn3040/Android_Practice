@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="Maps">
+        <item>Basic</item>
+        <item>satellite</item>
+        <item>terrain</item>
+        <item>hybrid</item>
+    </string-array>
+</resources>
