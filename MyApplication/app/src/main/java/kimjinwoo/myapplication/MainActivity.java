@@ -1,15 +1,12 @@
 package kimjinwoo.myapplication;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
-import android.graphics.PointF;
-import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -18,7 +15,13 @@ import android.widget.CheckBox;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import com.naver.maps.geometry.Coord;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.naver.maps.geometry.LatLng;
 import com.naver.maps.geometry.LatLngBounds;
 import com.naver.maps.map.CameraUpdate;
@@ -26,12 +29,10 @@ import com.naver.maps.map.LocationTrackingMode;
 import com.naver.maps.map.MapView;
 import com.naver.maps.map.NaverMap;
 import com.naver.maps.map.OnMapReadyCallback;
+import com.naver.maps.map.overlay.InfoWindow;
 import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.overlay.PolygonOverlay;
 import com.naver.maps.map.util.FusedLocationSource;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -40,9 +41,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.ArrayList;
 
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback
@@ -56,7 +57,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private NaverMap mNaverMap;
     private MapView mapView;
-    private CheckBox checkBox;
     private FusedLocationSource mLocationSource;
 
     @Override
@@ -118,39 +118,29 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onNothingSelected(AdapterView<?> parent) { }
         });
 
-        this.mNaverMap = naverMap;
-
-        mNaverMap.setOnMapLongClickListener((point, coord) -> {
-            RequsetHTTP http = new RequsetHTTP();
-            http.execute(coord.latitude, coord.longitude);
-        });
-
         ArrayList<LatLng> location_lists2 = new ArrayList<>();
         ArrayList<Marker> Marker_lists2 = new ArrayList<>();
         PolygonOverlay polygon2 = new PolygonOverlay();
 
-        naverMap.setOnMapClickListener(new NaverMap.OnMapClickListener() {
-            @Override
-            public void onMapClick(PointF pointF,LatLng latLng) {
-                Toast.makeText(MainActivity.this, latLng.latitude + "," + latLng.longitude, Toast.LENGTH_SHORT)
-                        .show();
+        naverMap.setOnMapClickListener((pointF, latLng) -> {
+            Toast.makeText(MainActivity.this, latLng.latitude + "," + latLng.longitude, Toast.LENGTH_SHORT)
+                    .show();
 
-                location_lists2.add(new LatLng(latLng.latitude, latLng.longitude));
-                for (int i = 0; i < location_lists2.size(); i++) {
-                    Marker_lists2.add(new Marker(location_lists2.get(i)));
-                }
-                for (int i = 0; i < location_lists2.size(); i++) {
-                    Marker_lists2.get(i).setPosition(location_lists2.get(i));
-                }
-                sortPointsClockwise(location_lists2);
-                for (Marker mak : Marker_lists2) {
-                    mak.setMap(naverMap);
-                }
-                if (location_lists2.size()>2) {
-                    polygon2.setCoords(location_lists2);
-                    polygon2.setMap(naverMap);
-               }
+            location_lists2.add(new LatLng(latLng.latitude, latLng.longitude));
+            for (int i = 0; i < location_lists2.size(); i++) {
+                Marker_lists2.add(new Marker(location_lists2.get(i)));
             }
+            for (int i = 0; i < location_lists2.size(); i++) {
+                Marker_lists2.get(i).setPosition(location_lists2.get(i));
+            }
+            sortPointsClockwise(location_lists2);
+            for (Marker mak : Marker_lists2) {
+                mak.setMap(naverMap);
+            }
+            if (location_lists2.size()>2) {
+                polygon2.setCoords(location_lists2);
+                polygon2.setMap(naverMap);
+           }
         });
 
         Button button1 = (Button) findViewById(R.id.button1);
@@ -184,6 +174,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_REQUEST_CODE);
 
+        mNaverMap.setOnMapLongClickListener((point, coord) -> {
+            RequsetHTTP http = new RequsetHTTP();
+            http.execute(coord.latitude, coord.longitude);
+        });
     }
     public ArrayList<LatLng> sortPointsClockwise(ArrayList<LatLng> location_lists2) {
 
@@ -224,10 +218,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    public void longClick() {
-
-    }
-
     public void onCheckboxClicked(View view) {
         boolean checked = ((CheckBox) view).isChecked();
         if (view.getId() == R.id.check1) {
@@ -237,37 +227,99 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mNaverMap.setLayerGroupEnabled(NaverMap.LAYER_GROUP_CADASTRAL, false);
         }
     }
+    public class RequsetHTTP extends AsyncTask<Double, Void, String> {
 
-    public static class RequsetHTTP extends AsyncTask<Double, Void, String> {
+        private OnDownloadCallback myCallback;
+        private String line, receiveMsg;
+        Double latitude,longtitude;
+
+        public abstract class OnDownloadCallback {
+            public abstract void onDownlaodedPnu(String pnu);
+        }
+
         @Override
         protected String doInBackground(Double... params) {
 
-            try{
-                String url = "https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=" +params[1]+","+params[0]+"&orders=addr&output=json";
+            try {
+                latitude = params[0];
+                longtitude = params[1];
+                String url = "https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=" + params[1] + "," + params[0] + "&orders=addr&output=json";
                 URL obj = new URL(url);
                 HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
                 connection.setRequestMethod("GET");
-                connection.setRequestProperty("Content-Type","application/json");
-                connection.setRequestProperty("X-NCP-APIGW-API-KEY-ID","l2kna1ctsa");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setRequestProperty("X-NCP-APIGW-API-KEY-ID", "l2kna1ctsa");
                 connection.setRequestProperty("X-NCP-APIGW-API-KEY", "kdeKLX1RDCbM5gJa4fNNSs7M6V9COYeArhR8Zfzn");
-
-
-                int retCode = connection.getResponseCode();
 
                 InputStream is = connection.getInputStream();
                 BufferedReader br = new BufferedReader(new InputStreamReader(is));
-                String line;
-                String page = "";
+                StringBuffer buffer = new StringBuffer();
                 while ((line = br.readLine()) != null) {
-                    page += line;
+                    buffer.append(line);
                 }
-                return page;
+                receiveMsg = buffer.toString();
+                Log.i("receiveMsg: ", receiveMsg);
+                br.close();
             } catch (MalformedURLException e) {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            return null;
+            return receiveMsg;
+        }
+
+        @Override
+        protected void onPostExecute(String jsonStr) {
+            super.onPostExecute(jsonStr);
+            String pnu = getPnu(jsonStr);
+            Marker mak = new Marker();
+            InfoWindow infoWindow = new InfoWindow();
+            if(myCallback != null) {
+                if (pnu != null) {
+                    myCallback.onDownlaodedPnu(pnu);
+                }
+            }
+            infoWindow.setAdapter(new InfoWindow.DefaultTextAdapter(getApplicationContext()) {
+                @NonNull
+                @Override
+                public CharSequence getText(@NonNull InfoWindow infoWindow) {
+                    return pnu;
+                }
+            });
+            mak.setPosition(new LatLng(latitude,longtitude));
+            mak.setMap(mNaverMap);
+            infoWindow.open(mak);
+        }
+
+        private String getPnu(String jsonStr) {
+            JsonParser jsonParser = new JsonParser();
+
+            JsonObject jsonObj = (JsonObject) jsonParser.parse(jsonStr);
+            JsonArray jsonArray = (JsonArray) jsonObj.get("results");
+            jsonObj = (JsonObject) jsonArray.get(0);
+            jsonObj = (JsonObject) jsonObj.get("code");
+            String pnu = jsonObj.get("id").getAsString();
+
+            jsonObj = (JsonObject) jsonParser.parse(jsonStr);
+            jsonArray = (JsonArray) jsonObj.get("results");
+            jsonObj = (JsonObject) jsonArray.get(0);
+            jsonObj = (JsonObject) jsonObj.get("land");
+            pnu = pnu + jsonObj.get("type").getAsString();
+            String number1 = jsonObj.get("number1").getAsString();
+            String number2 = jsonObj.get("number2").getAsString();
+            pnu = pnu + makeStringNum(number1) + makeStringNum(number2);
+
+            return pnu;
+        }
+        private String makeStringNum(String number) {
+            String strNum="";
+            for (int i=0; i<4-number.length(); i++) {
+                strNum = strNum + "0";
+            }
+            strNum=strNum+number;
+
+            return strNum;
         }
     }
+
 }
