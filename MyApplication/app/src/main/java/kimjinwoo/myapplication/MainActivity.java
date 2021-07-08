@@ -229,13 +229,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     public class RequsetHTTP extends AsyncTask<Double, Void, String> {
 
-        private OnDownloadCallback myCallback;
         private String line, receiveMsg;
         Double latitude,longtitude;
 
-        public abstract class OnDownloadCallback {
-            public abstract void onDownlaodedPnu(String pnu);
-        }
 
         @Override
         protected String doInBackground(Double... params) {
@@ -271,55 +267,63 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         @Override
         protected void onPostExecute(String jsonStr) {
             super.onPostExecute(jsonStr);
-            String pnu = getPnu(jsonStr);
+            String adr = getAdr(jsonStr);
             Marker mak = new Marker();
             InfoWindow infoWindow = new InfoWindow();
-            if(myCallback != null) {
-                if (pnu != null) {
-                    myCallback.onDownlaodedPnu(pnu);
-                }
-            }
             infoWindow.setAdapter(new InfoWindow.DefaultTextAdapter(getApplicationContext()) {
                 @NonNull
                 @Override
                 public CharSequence getText(@NonNull InfoWindow infoWindow) {
-                    return pnu;
+                    return adr;
                 }
             });
+
             mak.setPosition(new LatLng(latitude,longtitude));
             mak.setMap(mNaverMap);
             infoWindow.open(mak);
         }
 
-        private String getPnu(String jsonStr) {
+        private String getAdr(String jsonStr) {
             JsonParser jsonParser = new JsonParser();
 
             JsonObject jsonObj = (JsonObject) jsonParser.parse(jsonStr);
             JsonArray jsonArray = (JsonArray) jsonObj.get("results");
             jsonObj = (JsonObject) jsonArray.get(0);
-            jsonObj = (JsonObject) jsonObj.get("code");
-            String pnu = jsonObj.get("id").getAsString();
+            jsonObj = (JsonObject) jsonObj.get("region");
+            jsonObj = (JsonObject) jsonObj.get("area1");
+            String adr = jsonObj.get("name").getAsString();
+            adr = adr + " ";
+
+            jsonObj = (JsonObject) jsonParser.parse(jsonStr);
+            jsonArray = (JsonArray) jsonObj.get("results");
+            jsonObj = (JsonObject) jsonArray.get(0);
+            jsonObj = (JsonObject) jsonObj.get("region");
+            jsonObj = (JsonObject) jsonObj.get("area2");
+            adr = adr + jsonObj.get("name").getAsString();
+            adr = adr + " ";
+
+            jsonObj = (JsonObject) jsonParser.parse(jsonStr);
+            jsonArray = (JsonArray) jsonObj.get("results");
+            jsonObj = (JsonObject) jsonArray.get(0);
+            jsonObj = (JsonObject) jsonObj.get("region");
+            jsonObj = (JsonObject) jsonObj.get("area3");
+            adr = adr + jsonObj.get("name").getAsString();
+            adr = adr + " ";
 
             jsonObj = (JsonObject) jsonParser.parse(jsonStr);
             jsonArray = (JsonArray) jsonObj.get("results");
             jsonObj = (JsonObject) jsonArray.get(0);
             jsonObj = (JsonObject) jsonObj.get("land");
-            pnu = pnu + jsonObj.get("type").getAsString();
-            String number1 = jsonObj.get("number1").getAsString();
-            String number2 = jsonObj.get("number2").getAsString();
-            pnu = pnu + makeStringNum(number1) + makeStringNum(number2);
+            adr = adr + jsonObj.get("number1").getAsString();
+            adr = adr + "-";
 
-            return pnu;
-        }
-        private String makeStringNum(String number) {
-            String strNum="";
-            for (int i=0; i<4-number.length(); i++) {
-                strNum = strNum + "0";
-            }
-            strNum=strNum+number;
+            jsonObj = (JsonObject) jsonParser.parse(jsonStr);
+            jsonArray = (JsonArray) jsonObj.get("results");
+            jsonObj = (JsonObject) jsonArray.get(0);
+            jsonObj = (JsonObject) jsonObj.get("land");
+            adr = adr + jsonObj.get("number2").getAsString();
 
-            return strNum;
+            return adr;
         }
     }
-
 }
