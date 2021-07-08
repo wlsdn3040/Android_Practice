@@ -12,6 +12,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -178,6 +179,19 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             RequsetHTTP http = new RequsetHTTP();
             http.execute(coord.latitude, coord.longitude);
         });
+
+        Button button3 = (Button) findViewById(R.id.button3);
+
+
+        button3.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v) {
+                EditText editText = (EditText)findViewById(R.id.editText);
+                String ltlg = editText.getText().toString();
+                RequsetAdr http2 = new RequsetAdr();
+                http2.execute(ltlg);
+            }
+        });
     }
     public ArrayList<LatLng> sortPointsClockwise(ArrayList<LatLng> location_lists2) {
 
@@ -232,10 +246,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         private String line, receiveMsg;
         Double latitude,longtitude;
 
-
         @Override
         protected String doInBackground(Double... params) {
-
             try {
                 latitude = params[0];
                 longtitude = params[1];
@@ -326,4 +338,62 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return adr;
         }
     }
+    public class RequsetAdr extends AsyncTask<String, Void, String> {
+
+        private String line, receiveMsg;
+
+        @Override
+        protected String doInBackground(String... Strings) {
+
+            try {
+                String url = "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode?query=" + Strings[0];
+                URL obj = new URL(url);
+                HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setRequestProperty("X-NCP-APIGW-API-KEY-ID", "l2kna1ctsa");
+                connection.setRequestProperty("X-NCP-APIGW-API-KEY", "kdeKLX1RDCbM5gJa4fNNSs7M6V9COYeArhR8Zfzn");
+
+                InputStream is = connection.getInputStream();
+                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                StringBuffer buffer = new StringBuffer();
+                while ((line = br.readLine()) != null) {
+                    buffer.append(line);
+                }
+                receiveMsg = buffer.toString();
+                Log.i("receiveMsg: ", receiveMsg);
+                br.close();
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return receiveMsg;
+        }
+
+        private LatLng getAdr(String jsonStr) {
+            JsonParser jsonParser = new JsonParser();
+
+            JsonObject jsonObj = (JsonObject) jsonParser.parse(jsonStr);
+            JsonArray jsonArray = (JsonArray) jsonObj.get("addresses");
+            jsonObj = (JsonObject) jsonArray.get(0);
+            double adr2 = jsonObj.get("x").getAsDouble();
+            double adr = jsonObj.get("y").getAsDouble();
+
+            return new LatLng(adr,adr2);
+        }
+
+        @Override
+        protected void onPostExecute(String jsonStr) {
+            super.onPostExecute(jsonStr);
+            LatLng adr = getAdr(jsonStr);
+
+            Marker mak = new Marker();
+
+            mak.setPosition(getAdr(jsonStr));
+            mak.setMap(mNaverMap);
+        }
+    }
+
+
 }
